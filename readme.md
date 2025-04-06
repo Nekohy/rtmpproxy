@@ -4,8 +4,8 @@
 
 ## 参数说明
 
-* `-listen`：指定监听的端口，默认为 `10272`。
-* `-remote`：指定远程 RTMPS 服务器的地址，例如：`dc5-1.rtmp.t.me:443`。
+* `-listen`：指定监听的端口，默认为 `10721`。
+* `-remote`：指定远程 RTMPS 服务器的地址，例如：`rtmps://dc5-1.rtmp.t.me`。
 * `-proxy`：指定 SOCKS5 代理地址，格式为 `socks5://[username:password@]host:port`。例如：`socks5://user:pass@127.0.0.1:7890`,`socks5://127.0.0.1:7890`。
 ## 使用方法
 
@@ -14,9 +14,9 @@
     在命令行中执行以下命令，根据需要替换参数：
 
     ```bash
-    ./rtmp-proxy -listen 10272 -remote dc5-1.rtmp.t.me:443 -proxy socks5://127.0.0.1:7890
+    ./rtmp-proxy -listen 10721 -remote rtmps://dc5-1.rtmp.t.me -proxy socks5://127.0.0.1:7890
     ```
 
 2.  **在 OBS 或其他推流客户端中配置：**
 
-    将推流地址设置为 `rtmp://<listen地址>/<原后缀>`。例如，如果你的监听地址是 `127.0.0.1:10272`，原后缀是 `streamkey`，则推流地址为 `rtmp://127.0.0.1:10272/streamkey`。
+    将推流地址设置为 `rtmp://<listen地址>/<原后缀>`。例如，如果你的监听地址是 `127.0.0.1:10721`，原后缀是 `streamkey`，则推流地址为 `rtmp://127.0.0.1:10721/streamkey`。

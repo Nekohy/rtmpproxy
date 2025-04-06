@@ -8,7 +8,15 @@ import (
 	"log"
 	"net"
 	"net/url"
+	"strings"
 	"sync"
+)
+
+const (
+	defaultRTMPSPort = "443"
+	defaultRTMPPort  = "1935"
+	schemeRTMPS      = "rtmps"
+	schemeRTMP       = "rtmp"
 )
 
 type Connection struct{}
@@ -71,44 +79,85 @@ func (c *Connection) CreateDialer(proxyAddr *string) (proxy.Dialer, error) {
 	return dialer, nil
 }
 
-// HandleClient 主处理函数，协调客户端连接的处理流程
+// HandleClient 主处理函数，协调客户端连接的处理流程 (优化版)
 func (c *Connection) HandleClient(clientConn net.Conn, remoteAddr string, dialer proxy.Dialer) error {
 	// 始终确保客户端连接在函数退出时关闭
-	defer func(clientConn net.Conn) {
+	defer func() {
 		_ = clientConn.Close()
-	}(clientConn)
+		log.Printf("[%s] Client connection closed.", clientConn.RemoteAddr().String())
+	}()
+
 	clientIP := clientConn.RemoteAddr().String()
-	log.Printf("[%s] Accepted connection", clientIP)
+	log.Printf("[%s] Accepted connection. Target: %s", clientIP, remoteAddr)
 
-	// 1. 通过代理连接远程服务器
-	proxyConn, err := c.ConnectRemoteAddress(remoteAddr, dialer, clientIP)
+	// 1. 解析远程地址并确定连接参数
+	remoteURL, err := url.Parse(remoteAddr)
 	if err != nil {
-		// 连接失败，日志已在 connectRemoteAddress 中记录
-		return err // clientConn 会被顶部的 defer 关闭
+		return fmt.Errorf("[%s] failed to parse remote address '%s': %w", clientIP, remoteAddr, err)
 	}
-	// 注意：此时 proxyConn 已打开，需要确保它最终被关闭。
-	// 我们不在这里 defer proxyConn.Close()，而是依赖后续的 tlsConn.Close()
-	// 或者在 EstablishTLS 失败时手动关闭。
 
-	// 2. 在代理连接上建立 TLS 连接
-	tlsConn, err := c.EstablishTLS(proxyConn, remoteAddr, clientIP)
+	var remoteHost string // host:port 格式
+	var useTLS bool
+
+	switch strings.ToLower(remoteURL.Scheme) {
+	case schemeRTMPS:
+		useTLS = true
+		remoteHost = remoteURL.Host
+		if remoteURL.Port() == "" {
+			remoteHost = net.JoinHostPort(remoteURL.Hostname(), defaultRTMPSPort)
+		}
+	case schemeRTMP:
+		useTLS = false
+		remoteHost = remoteURL.Host
+		if remoteURL.Port() == "" {
+			remoteHost = net.JoinHostPort(remoteURL.Hostname(), defaultRTMPPort)
+		}
+	default:
+		return fmt.Errorf("[%s] unsupported remote scheme '%s' in address '%s'", clientIP, remoteURL.Scheme, remoteAddr)
+	}
+
+	log.Printf("[%s] Resolved remote target: %s (TLS: %v)", clientIP, remoteHost, useTLS)
+
+	// 2. 连接远程服务器 (建立原始连接)
+	rawConn, err := c.ConnectRemoteAddress(remoteHost, dialer, clientIP)
 	if err != nil {
-		// TLS 建立失败，日志已在 EstablishTLS 中记录
-		// **重要**: 因为 tlsConn 未成功建立，必须手动关闭 proxyConn
-		_ = proxyConn.Close()
-		return err // clientConn 会被顶部的 defer 关闭
+		// ConnectRemoteAddress 内部应记录详细错误
+		return fmt.Errorf("[%s] failed to connect to remote %s: %w", clientIP, remoteHost, err) // clientConn 会被顶部的 defer 关闭
 	}
-	// TLS 握手成功! defer tlsConn.Close() 会负责关闭 TLS 层和底层的 proxyConn
-	defer func(tlsConn *tls.Conn) {
-		_ = tlsConn.Close()
-	}(tlsConn)
-	log.Printf("[%s] TLS handshake successful with %s", clientIP, remoteAddr)
 
-	// 3. 双向转发数据
-	log.Printf("[%s] Starting data relay between client and %s", clientIP, remoteAddr)
-	c.relayData(clientConn, tlsConn, clientIP) // relayData 内部处理等待逻辑
+	// 使用一个变量代表最终与远程服务器交互的连接
+	// 并使用 defer 确保其最终关闭 (无论是原始连接还是 TLS 连接)
+	var remoteConn = rawConn // 初始设为原始连接
+	defer func() {
+		if remoteConn != nil {
+			log.Printf("[%s] Closing connection to remote %s.", clientIP, remoteHost)
+			_ = remoteConn.Close()
+		}
+	}()
 
-	log.Printf("[%s] Data relay finished. Closing connections via defer.", clientIP)
+	// 3. 如果需要，建立 TLS 连接
+	if useTLS {
+		log.Printf("[%s] Establishing TLS connection with %s...", clientIP, remoteHost)
+		// EstablishTLS 应该接收原始连接，返回 TLS 连接
+		// 注意：传入 remoteURL.Hostname() 可能更适合 TLS 验证，而不是 remoteHost (包含端口)
+		tlsConn, tlsErr := c.EstablishTLS(rawConn, remoteURL.Hostname(), clientIP)
+		if tlsErr != nil {
+			// EstablishTLS 内部应记录详细错误
+			// 不需要手动关闭 rawConn，因为 remoteConn 仍然是 rawConn，会被 defer 关闭
+			return fmt.Errorf("[%s] failed to establish TLS with %s: %w", clientIP, remoteHost, tlsErr)
+		}
+		// TLS 握手成功! 更新 remoteConn 为 TLS 连接
+		// 关闭 tlsConn 时，它会自动关闭底层的 rawConn
+		remoteConn = tlsConn
+		log.Printf("[%s] TLS handshake successful with %s", clientIP, remoteHost)
+	}
+
+	// 4. 双向转发数据
+	log.Printf("[%s] Starting data relay between client and %s (%s)", clientIP, remoteHost, map[bool]string{true: "TLS", false: "No TLS"}[useTLS])
+	c.relayData(clientConn, remoteConn, clientIP) // relayData 内部处理等待和错误
+
+	log.Printf("[%s] Data relay finished between client and %s.", clientIP, remoteHost)
+	// 连接由 defer 语句负责关闭
 	return nil
 }
 
