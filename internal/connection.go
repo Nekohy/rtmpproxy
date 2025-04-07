@@ -41,15 +41,15 @@ func (c *Connection) CreateDialer(proxyAddr *string) (proxy.Dialer, error) {
 		// 使用 url.Parse 解析字符串
 		proxyURL, err := url.Parse(*proxyAddr)
 		if err != nil {
-			return nil, fmt.Errorf("解析代理 URL '%s' 失败: %v", *proxyAddr, err)
+			return nil, InvalidProxy
 		}
 		// 提取代理服务器地址 (Host 字段包含地址和端口)
 		proxyAddress := proxyURL.Host
 		if proxyAddress == "" {
-			return nil, fmt.Errorf("invalid proxy URL '%s'", *proxyAddr)
+			return nil, InvalidProxy
 		} else {
 			if proxyURL.Scheme != "socks5" {
-				return nil, fmt.Errorf("not support proxy scheme %s", proxyURL.Scheme)
+				return nil, InvalidProxyScheme
 			}
 			if proxyURL.User != nil {
 				username := proxyURL.User.Username()
@@ -62,7 +62,7 @@ func (c *Connection) CreateDialer(proxyAddr *string) (proxy.Dialer, error) {
 					}
 					log.Printf("Proxy Username %s, Proxy Password %s,try to connect with authentication", username, password)
 				} else if !passwordSet {
-					return nil, fmt.Errorf("invalid authentication in proxy URL")
+					return nil, InvaildProxyPassword
 				} else {
 					log.Println("No authentication in proxy URL,try to connect with no authentication")
 				}
@@ -72,14 +72,14 @@ func (c *Connection) CreateDialer(proxyAddr *string) (proxy.Dialer, error) {
 		dialer, err = proxy.SOCKS5("tcp", proxyAddress, auth, proxy.Direct)
 		if err != nil {
 			// 创建配置失败报错
-			return nil, fmt.Errorf("failed to create proxy dialer: %v", err) // 创建dialer配置失败
+			return nil, FailedToCreateProxyDialer // 创建dialer配置失败
 		}
 		log.Printf("Using proxy: %s", *proxyAddr)
 	}
 	return dialer, nil
 }
 
-// HandleClient 主处理函数，协调客户端连接的处理流程 (优化版)
+// HandleClient 主处理函数，协调客户端连接的处理流程
 func (c *Connection) HandleClient(clientConn net.Conn, remoteAddr string, dialer proxy.Dialer) error {
 	// 始终确保客户端连接在函数退出时关闭
 	defer func() {
@@ -113,16 +113,16 @@ func (c *Connection) HandleClient(clientConn net.Conn, remoteAddr string, dialer
 			remoteHost = net.JoinHostPort(remoteURL.Hostname(), defaultRTMPPort)
 		}
 	default:
-		return fmt.Errorf("[%s] unsupported remote scheme '%s' in address '%s'", clientIP, remoteURL.Scheme, remoteAddr)
+		return UnSupportedScheme
 	}
 
 	log.Printf("[%s] Resolved remote target: %s (TLS: %v)", clientIP, remoteHost, useTLS)
 
-	// 2. 连接远程服务器 (建立原始连接)
+	// 连接远程服务器 (建立原始连接)
 	rawConn, err := c.ConnectRemoteAddress(remoteHost, dialer, clientIP)
 	if err != nil {
 		// ConnectRemoteAddress 内部应记录详细错误
-		return fmt.Errorf("[%s] failed to connect to remote %s: %w", clientIP, remoteHost, err) // clientConn 会被顶部的 defer 关闭
+		return FailedToConnectRemoteServer // clientConn 会被顶部的 defer 关闭
 	}
 
 	// 使用一个变量代表最终与远程服务器交互的连接
@@ -144,7 +144,7 @@ func (c *Connection) HandleClient(clientConn net.Conn, remoteAddr string, dialer
 		if tlsErr != nil {
 			// EstablishTLS 内部应记录详细错误
 			// 不需要手动关闭 rawConn，因为 remoteConn 仍然是 rawConn，会被 defer 关闭
-			return fmt.Errorf("[%s] failed to establish TLS with %s: %w", clientIP, remoteHost, tlsErr)
+			return FailedToEstablishTLS
 		}
 		// TLS 握手成功! 更新 remoteConn 为 TLS 连接
 		// 关闭 tlsConn 时，它会自动关闭底层的 rawConn
@@ -154,9 +154,15 @@ func (c *Connection) HandleClient(clientConn net.Conn, remoteAddr string, dialer
 
 	// 4. 双向转发数据
 	log.Printf("[%s] Starting data relay between client and %s (%s)", clientIP, remoteHost, map[bool]string{true: "TLS", false: "No TLS"}[useTLS])
-	c.relayData(clientConn, remoteConn, clientIP) // relayData 内部处理等待和错误
+	errs := c.relayData(clientConn, remoteConn, clientIP) // relayData 内部处理等待和错误
+	for err := range errs {
+		if &err != nil { //todo 在这里加入自定义重试处理
+			log.Printf("[%s] Connection error: %v", clientIP, err)
+		}
+	}
 
 	log.Printf("[%s] Data relay finished between client and %s.", clientIP, remoteHost)
+
 	// 连接由 defer 语句负责关闭
 	return nil
 }
@@ -167,7 +173,7 @@ func (c *Connection) ConnectRemoteAddress(remoteAddr string, dialer proxy.Dialer
 	proxyConn, err := dialer.Dial("tcp", remoteAddr)
 	if err != nil {
 		log.Printf("[%s] Failed to dial remote server: %v", clientIP, err)
-		return nil, err
+		return nil, FailedToConnectRemoteServer
 	}
 	log.Printf("[%s] Successfully connected to remote", clientIP)
 	return proxyConn, nil
@@ -198,16 +204,17 @@ func (c *Connection) EstablishTLS(rawConn net.Conn, remoteAddr string, clientIP 
 	err = tlsConn.Handshake()
 	if err != nil {
 		log.Printf("[%s] TLS handshake failed with remote %s: %v", clientIP, remoteAddr, err)
-		return nil, err // 返回错误
+		return nil, FailedToEstablishTLS // 返回错误
 	}
 	// TLS 握手成功，返回 tlsConn
 	return tlsConn, nil
 }
 
 // relayData 在两个连接之间双向转发数据，并等待转发完成
-func (c *Connection) relayData(conn1, conn2 net.Conn, clientIP string) {
+func (c *Connection) relayData(conn1, conn2 net.Conn, clientIP string) []*error {
 	var wg sync.WaitGroup
-	wg.Add(2) // 等待两个方向的拷贝
+	errChan := make(chan *error) // 容量为2，确保发送不阻塞
+	wg.Add(2)                    // 等待两个方向的拷贝
 
 	conn1Addr := conn1.RemoteAddr().String()
 	conn2Addr := conn2.RemoteAddr().String()
@@ -217,8 +224,11 @@ func (c *Connection) relayData(conn1, conn2 net.Conn, clientIP string) {
 		defer wg.Done()
 		bytesCopied, err := io.Copy(conn2, conn1)
 		log.Printf("[%s] Relay %s -> %s finished. Bytes: %d. Error: %v", clientIP, conn1Addr, conn2Addr, bytesCopied, err)
-		// 可以尝试关闭写端，通知对端数据发送完毕，但这依赖具体协议和实现
-		// 通常在 TCP 代理中，一方结束后，关闭整个连接更常见和简单
+		if err != nil {
+			errChan <- &err
+		} else {
+			errChan <- nil // 正常完成
+		}
 		_ = conn2.Close() // 会让另一个 io.Copy 也很快结束
 	}()
 
@@ -227,9 +237,23 @@ func (c *Connection) relayData(conn1, conn2 net.Conn, clientIP string) {
 		defer wg.Done()
 		bytesCopied, err := io.Copy(conn1, conn2)
 		log.Printf("[%s] Relay %s -> %s finished. Bytes: %d. Error: %v", clientIP, conn2Addr, conn1Addr, bytesCopied, err)
+		if err != nil {
+			errChan <- &err
+		} else {
+			errChan <- nil // 正常完成
+		}
 		_ = conn1.Close()
 	}()
 
 	// 等待两个 io.Copy goroutine 都完成
 	wg.Wait()
+	close(errChan)
+
+	errs := make([]*error, 0) // 关闭 channel，以便 range 退出
+	for err := range errChan {
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errs
 }
