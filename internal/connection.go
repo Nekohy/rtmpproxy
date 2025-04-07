@@ -19,27 +19,30 @@ const (
 	schemeRTMP       = "rtmp"
 )
 
-type Connection struct{}
+type Connection struct {
+	ProxyAddr  *string
+	RemoteAddr *string
+}
 
 type ConnectionInterface interface {
-	CreateDialer(proxyAddr *string) (proxy.Dialer, error)
-	HandleClient(clientConn net.Conn, remoteAddr string, dialer proxy.Dialer) error
+	CreateDialer() (proxy.Dialer, error)
+	HandleClient(clientConn net.Conn, dialer proxy.Dialer) error
 	ConnectRemoteAddress(remoteAddr string, dialer proxy.Dialer, clientIP string) (net.Conn, error)
 	EstablishTLS(rawConn net.Conn, remoteAddr string, clientIP string) (*tls.Conn, error)
 }
 
 // CreateDialer 创建proxy dialer
-func (c *Connection) CreateDialer(proxyAddr *string) (proxy.Dialer, error) {
+func (c *Connection) CreateDialer() (proxy.Dialer, error) {
 	// 设置代理拨号器 (Dialer)
 	var dialer proxy.Dialer
 
-	if *proxyAddr == "" {
+	if *c.ProxyAddr == "" {
 		log.Printf("Direct to the remote server")
 		dialer = proxy.Direct
 	} else {
 		var auth *proxy.Auth
 		// 使用 url.Parse 解析字符串
-		proxyURL, err := url.Parse(*proxyAddr)
+		proxyURL, err := url.Parse(*c.ProxyAddr)
 		if err != nil {
 			return nil, InvalidProxy
 		}
@@ -74,13 +77,13 @@ func (c *Connection) CreateDialer(proxyAddr *string) (proxy.Dialer, error) {
 			// 创建配置失败报错
 			return nil, FailedToCreateProxyDialer // 创建dialer配置失败
 		}
-		log.Printf("Using proxy: %s", *proxyAddr)
+		log.Printf("Using proxy: %s", *c.ProxyAddr)
 	}
 	return dialer, nil
 }
 
 // HandleClient 主处理函数，协调客户端连接的处理流程
-func (c *Connection) HandleClient(clientConn net.Conn, remoteAddr string, dialer proxy.Dialer) error {
+func (c *Connection) HandleClient(clientConn net.Conn, dialer proxy.Dialer) error {
 	// 始终确保客户端连接在函数退出时关闭
 	defer func() {
 		_ = clientConn.Close()
@@ -88,12 +91,12 @@ func (c *Connection) HandleClient(clientConn net.Conn, remoteAddr string, dialer
 	}()
 
 	clientIP := clientConn.RemoteAddr().String()
-	log.Printf("[%s] Accepted connection. Target: %s", clientIP, remoteAddr)
+	log.Printf("[%s] Accepted connection. Target: %s", clientIP, *c.RemoteAddr)
 
 	// 1. 解析远程地址并确定连接参数
-	remoteURL, err := url.Parse(remoteAddr)
+	remoteURL, err := url.Parse(*c.RemoteAddr)
 	if err != nil {
-		return fmt.Errorf("[%s] failed to parse remote address '%s': %w", clientIP, remoteAddr, err)
+		return fmt.Errorf("[%s] failed to parse remote address '%s': %w", clientIP, *c.RemoteAddr, err)
 	}
 
 	var remoteHost string // host:port 格式

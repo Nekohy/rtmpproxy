@@ -34,10 +34,13 @@ func main() {
 		_ = listener.Close()
 	}(listener)
 
-	connection := internal.Connection{}
+	connection := internal.Connection{
+		ProxyAddr:  proxyAddr,
+		RemoteAddr: remoteAddr,
+	}
 
 	log.Println("Waiting for client connections...")
-	dialer, err := connection.CreateDialer(proxyAddr)
+	dialer, err := connection.CreateDialer()
 	if err != nil {
 		log.Fatalf("Failed to create proxy dialer: %v", err)
 	}
@@ -62,7 +65,7 @@ func main() {
 		// 为每个客户端连接启动一个独立的 goroutine 处理
 		go func(conn net.Conn) {
 			// 在 goroutine 内部调用 HandleClient
-			err := connection.HandleClient(conn, *remoteAddr, dialer)
+			err := connection.HandleClient(conn, dialer)
 			// 将错误（可能是 nil）发送到通道
 			errChan <- err
 		}(clientConn) // 将 clientConn 作为参数传递给 goroutine 的闭包
