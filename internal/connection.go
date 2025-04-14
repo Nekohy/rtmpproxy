@@ -22,13 +22,22 @@ const (
 type Connection struct {
 	ProxyAddr  *string
 	RemoteAddr *string
+	Hooks      ConnectionHandler
 }
 
-type ConnectionInterface interface {
+type ConnectionHandler interface {
+	SetHooks(ConnectionHandler)
 	CreateDialer() (proxy.Dialer, error)
 	HandleClient(clientConn net.Conn, dialer proxy.Dialer) error
 	ConnectRemoteAddress(remoteAddr string, dialer proxy.Dialer, clientIP string) (net.Conn, error)
 	EstablishTLS(rawConn net.Conn, remoteAddr string, clientIP string) (*tls.Conn, error)
+	BeforeEstablishConnection() error // 连接前的动作
+	AfterCloseConnection() error      // 连接断开后的回调
+}
+
+// SetHooks 设置钩子,来覆盖内置函数
+func (c *Connection) SetHooks(hooks ConnectionHandler) {
+	c.Hooks = hooks
 }
 
 // CreateDialer 创建proxy dialer
@@ -120,7 +129,11 @@ func (c *Connection) HandleClient(clientConn net.Conn, dialer proxy.Dialer) erro
 	}
 
 	log.Printf("[%s] Resolved remote target: %s (TLS: %v)", clientIP, remoteHost, useTLS)
-
+	err = c.BeforeEstablishConnection()
+	if err != nil {
+		log.Printf("[%s] FailedBeforeEstablishConnection: %v", clientIP, err)
+		return FailedBeforeEstablishConnection
+	}
 	// 连接远程服务器 (建立原始连接)
 	rawConn, err := c.ConnectRemoteAddress(remoteHost, dialer, clientIP)
 	if err != nil {
@@ -162,6 +175,12 @@ func (c *Connection) HandleClient(clientConn net.Conn, dialer proxy.Dialer) erro
 		if &err != nil { //todo 在这里加入自定义重试处理
 			log.Printf("[%s] Connection error: %v", clientIP, err)
 		}
+	}
+
+	err = c.AfterCloseConnection()
+	if err != nil {
+		log.Printf("[%s] FailedAfterCloseConnection: %v", clientIP, err)
+		return FailedAfterCloseConnection
 	}
 
 	log.Printf("[%s] Data relay finished between client and %s.", clientIP, remoteHost)
@@ -259,4 +278,18 @@ func (c *Connection) relayData(conn1, conn2 net.Conn, clientIP string) []*error 
 		}
 	}
 	return errs
+}
+
+func (c *Connection) BeforeEstablishConnection() error {
+	if c.Hooks != nil {
+		return c.Hooks.BeforeEstablishConnection() // 通过接口调用
+	}
+	return nil
+}
+
+func (c *Connection) AfterCloseConnection() error {
+	if c.Hooks != nil {
+		return c.Hooks.AfterCloseConnection() // 通过接口调用
+	}
+	return nil
 }

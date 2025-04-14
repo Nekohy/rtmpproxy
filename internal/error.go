@@ -18,3 +18,8 @@ var (
 	FailedToConnectRemoteServer = errors.New("failed to connect to remote server")
 	FailedToEstablishTLS        = errors.New("failed to establish TLS")
 )
+
+var (
+	FailedBeforeEstablishConnection = errors.New("failed before establish connection")
+	FailedAfterCloseConnection      = errors.New("failed after connection callback")
+)
