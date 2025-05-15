@@ -13,12 +13,17 @@ import (
 )
 
 func main() {
-	listenAddr := flag.String("listen", ":10721", "Local address to listen on (e.g., :10721)")
+	listenAddr := flag.String("listen", ":1935", "Local address to listen on (e.g., :1935)")
 	remoteAddr := flag.String("remote", "", "Remote RTMPS server")
 	proxyAddr := flag.String("proxy", "", "Socks5 proxy server address (e.g., socks5://username:password@127.0.0.1:7890)")
-	pluginConfig := flag.String("plugin", "", `plugin config e.g. "bilibili:{\"Cookies\":\"value\"}"`)
+	pluginConfig := flag.String("plugin", "", `plugin config e.g. "test:{\"message\":\"hello world\"}"`)
 	insecureSkipVerify := flag.Bool("ignore", false, "skip TLS certificate verification")
 	flag.Parse()
+
+	if *pluginConfig == "" && *remoteAddr == "" {
+		flag.Usage()
+		log.Fatal("Error: Remote Addr or Plugin is required")
+	}
 
 	baseCfg := &internal.Config{
 		ListenAddr:         listenAddr,
@@ -26,6 +31,7 @@ func main() {
 		ProxyAddr:          proxyAddr,
 		InsecureSkipVerify: *insecureSkipVerify,
 	}
+
 	var interceptor plugins.Interceptor
 	if *pluginConfig != "" {
 		parts := strings.SplitN(*pluginConfig, ":", 2)
