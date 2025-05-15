@@ -58,9 +58,6 @@ func main() {
 		log.Fatalf("Interceptor ApplicationStart failed: %v", err)
 		return
 	}
-	if *baseCfg.RemoteAddr == "" {
-		log.Fatalf("Error: Remote Addr is required")
-	}
 
 	log.Printf("Starting RTMPS proxy...")
 	if *baseCfg.ProxyAddr != "" {
@@ -101,6 +98,9 @@ func main() {
 			if err != nil {
 				log.Fatalf("Interceptor BeforeEstablishTCPConnection failed: %v", err)
 				return
+			}
+			if *baseCfg.RemoteAddr == "" {
+				log.Fatalf("Error: Remote Addr is required")
 			}
 			ServerConn, err := baseCfg.ConnectRemoteAddress()
 			if err != nil {

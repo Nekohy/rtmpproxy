@@ -17,7 +17,6 @@ type CustomInterceptor struct {
 }
 
 func (c *CustomInterceptor) ApplicationStart() error {
-	var err error
 	if c.client == nil {
 		cli, err := CreateClient(c.Cookie)
 		if err != nil {
@@ -25,6 +24,10 @@ func (c *CustomInterceptor) ApplicationStart() error {
 		}
 		c.client = cli
 	}
+	return nil
+}
+
+func (c *CustomInterceptor) BeforeEstablishTCPConnection() error {
 	startLiveParam := bilibili.StartLiveParam{
 		RoomId:   c.RoomID,
 		AreaV2:   c.AreaV2,
@@ -36,10 +39,6 @@ func (c *CustomInterceptor) ApplicationStart() error {
 	}
 	rtmpAddr := startLiveResult.Rtmp.Addr + startLiveResult.Rtmp.Code
 	c.BaseCfg.RemoteAddr = &rtmpAddr
-	return nil
-}
-
-func (c *CustomInterceptor) BeforeEstablishTCPConnection() error {
 	return nil
 }
 
