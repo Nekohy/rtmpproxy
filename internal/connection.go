@@ -55,10 +55,10 @@ func (c *Config) CreateDialer() error {
 // EstablishTLS 在给定的原始连接上建立 TLS 客户端连接
 func (c *Config) EstablishTLS() error {
 	// 从 remoteAddr 中提取主机名用于 TLS ServerName (SNI)
-	remoteHost, _, err := net.SplitHostPort(c.remoteURL.Host)
+	remoteHost, _, err := net.SplitHostPort(c.RemoteURL.Host)
 	if err != nil {
-		if net.ParseIP(c.remoteURL.Host) != nil {
-			remoteHost = c.remoteURL.Host
+		if net.ParseIP(c.RemoteURL.Host) != nil {
+			remoteHost = c.RemoteURL.Host
 			log.Printf("[%s] Warning: Remote address looks like an IP address. TLS validation might fail or require specific server configuration (SNI).", remoteHost)
 		}
 	}
@@ -69,7 +69,7 @@ func (c *Config) EstablishTLS() error {
 		InsecureSkipVerify: c.InsecureSkipVerify,
 	}
 
-	log.Printf("Starting TLS handshake with %s (ServerName: %s)...", c.remoteURL.Host, remoteHost)
+	log.Printf("Starting TLS handshake with %s (ServerName: %s)...", c.RemoteURL.Host, remoteHost)
 	// 在 rawConn 之上创建 TLS 客户端连接
 	c.conn = tls.Client(c.conn, tlsConfig)
 
@@ -77,7 +77,7 @@ func (c *Config) EstablishTLS() error {
 
 	err = c.conn.(*tls.Conn).Handshake()
 	if err != nil {
-		log.Printf("TLS handshake failed with remote %s: %v", c.remoteURL.Host, err)
+		log.Printf("TLS handshake failed with remote %s: %v", c.RemoteURL.Host, err)
 		return utils.FailedToEstablishTLS // 返回错误
 	}
 	// TLS 握手成功，返回 tlsConn
@@ -88,29 +88,33 @@ func (c *Config) EstablishTLS() error {
 func (c *Config) ConnectRemoteAddress() (net.Conn, error) {
 	var err error
 	var useTLS bool
-	c.remoteURL, useTLS, err = utils.ParseLink(*c.RemoteAddr)
+	c.RemoteURL, useTLS, err = utils.ParseLink(*c.RemoteAddr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse remote address '%s': %w", *c.RemoteAddr, err)
 	}
+	err = c.CreateDialer()
+	if err != nil {
+		return nil, err
+	}
 
-	log.Printf("Dialing remote server %s", c.remoteURL.Host)
-	c.conn, err = c.dialer.Dial("tcp", c.remoteURL.Host)
+	log.Printf("Dialing remote server %s", c.RemoteURL.Host)
+	c.conn, err = c.dialer.Dial("tcp", c.RemoteURL.Host)
 	if err != nil {
 		log.Printf("Dial error: %v", err)
 		return nil, utils.FailedToConnectRemoteServer
 	}
 
-	log.Printf("Resolved remote target: %s (TLS: %v)", c.remoteURL.Host, map[bool]string{true: "TLS", false: "No TLS"}[useTLS])
+	log.Printf("Resolved remote target: %s (TLS: %v)", c.RemoteURL.Host, map[bool]string{true: "TLS", false: "No TLS"}[useTLS])
 
 	if useTLS {
-		log.Printf("Establishing TLS connection with %s...", c.remoteURL.Host)
+		log.Printf("Establishing TLS connection with %s...", c.RemoteURL.Host)
 		// EstablishTLS 应该接收原始连接，返回 TLS 连接
-		// 注意：传入 remoteURL.Hostname() 可能更适合 TLS 验证，而不是 remoteHost (包含端口)
+		// 注意：传入 RemoteURL.Hostname() 可能更适合 TLS 验证，而不是 remoteHost (包含端口)
 		err = c.EstablishTLS()
 		if err != nil {
 			return nil, utils.FailedToEstablishTLS
 		}
-		log.Printf("TLS handshake successful with %s", c.remoteURL.Host)
+		log.Printf("TLS handshake successful with %s", c.RemoteURL.Host)
 	}
 
 	log.Printf("Successfully connected to remote Server")
