@@ -1,7 +1,7 @@
 package plugins
 
 import (
-	"rtmpproxy-re/internal"
+	"rtmpproxy/internal"
 )
 
 type Plugin interface {

@@ -9,7 +9,7 @@ import (
 	"log"
 	"net"
 	"net/url"
-	"rtmpproxy-re/utils"
+	"rtmpproxy/utils"
 )
 
 // CreateDialer 创建proxy dialer

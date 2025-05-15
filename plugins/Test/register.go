@@ -2,8 +2,8 @@ package Test
 
 import (
 	"encoding/json"
-	"rtmpproxy-re/internal"
-	"rtmpproxy-re/internal/plugins"
+	"rtmpproxy/internal"
+	"rtmpproxy/internal/plugins"
 )
 
 type PluginConfig struct {
