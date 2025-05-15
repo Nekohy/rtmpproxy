@@ -49,6 +49,6 @@ func GetLinkParams(u *url.URL) (string, string, string, error) {
 
 	appName := parts[0]
 	streamName := parts[1]
-	playUrl := "" //todo:未知应该是什么
+	playUrl := u.Host
 	return appName, streamName, playUrl, nil
 }
