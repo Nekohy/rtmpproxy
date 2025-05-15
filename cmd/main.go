@@ -7,6 +7,7 @@ import (
 	"rtmpproxy/internal"
 	"rtmpproxy/internal/plugins"
 	"rtmpproxy/internal/rtmp"
+	_ "rtmpproxy/plugins/Bilibili"
 	_ "rtmpproxy/plugins/test"
 	"rtmpproxy/utils"
 	"strings"
@@ -45,7 +46,7 @@ func main() {
 			log.Fatalf("plugin '%s' not available or not registered", pluginName)
 		}
 		var err error
-		interceptor, err = p.Configure(configJSON)
+		interceptor, err = p.Configure(configJSON, baseCfg)
 		if err != nil {
 			log.Fatalf("Configure plugin '%s' failed: %v", pluginName, err)
 		}

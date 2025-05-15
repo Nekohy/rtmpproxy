@@ -41,7 +41,12 @@ func ParseLink(link string) (*url.URL, bool, error) {
 
 func GetLinkParams(u *url.URL) (string, string, string, error) {
 	// u.Path 比如 "/appName/streamName"
-	parts := strings.Split(strings.Trim(u.Path, "/"), "/")
+	// u.RawQuery 用于Bilibili的直播地址
+	var bilibiliPatch string
+	if u.RawQuery != "" {
+		bilibiliPatch = "?" + u.RawQuery
+	}
+	parts := strings.Split(strings.Trim(u.Path+bilibiliPatch, "/"), "/")
 	if len(parts) < 2 {
 		log.Fatalf("expected at least two path segments, got %d", len(parts))
 		return "", "", "", ErrorToExtractParams

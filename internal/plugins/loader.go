@@ -1,8 +1,10 @@
 package plugins
 
+import "rtmpproxy/internal"
+
 type Plugin interface {
-	Name() string                                 // 插件名称
-	Configure(config []byte) (Interceptor, error) // 返回一个 PluginHandler 实例
+	Name() string                                                           // 插件名称
+	Configure(config []byte, baseCfg *internal.Config) (Interceptor, error) // 返回一个 PluginHandler 实例
 }
 
 // 全局插件注册表
