@@ -1,4 +1,4 @@
-package Test
+package test
 
 import (
 	"log"
@@ -9,21 +9,21 @@ type CustomInterceptor struct {
 }
 
 func (c *CustomInterceptor) ApplicationStart() error {
-	log.Println("ApplicationStart Test:", c.message)
+	log.Println("ApplicationStart test:", c.message)
 	return nil
 }
 
 func (c *CustomInterceptor) BeforeEstablishTCPConnection() error {
-	log.Println("BeforeEstablishTCPConnection Test:", c.message)
+	log.Println("BeforeEstablishTCPConnection test:", c.message)
 	return nil
 }
 
 func (c *CustomInterceptor) AfterRTMPHandshake() error {
-	log.Println("AfterRTMPHandshake Test:", c.message)
+	log.Println("AfterRTMPHandshake test:", c.message)
 	return nil
 }
 
 func (c *CustomInterceptor) AfterCloseTCPConnection() error {
-	log.Println("AfterCloseTCPConnection Test:", c.message)
+	log.Println("AfterCloseTCPConnection test:", c.message)
 	return nil
 }

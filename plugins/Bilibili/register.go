@@ -1,8 +1,7 @@
-package Test
+package Bilibili
 
 import (
 	"encoding/json"
-	"rtmpproxy/internal"
 	"rtmpproxy/internal/plugins"
 )
 
@@ -18,14 +17,12 @@ func init() {
 	plugins.Register(&PluginConfig{})
 }
 
-func (p *PluginConfig) Name() string { return "test" }
+func (p *PluginConfig) Name() string { return "bilibili" }
 
-func (p *PluginConfig) Configure(config []byte, baseCfg *internal.Config) (plugins.Interceptor, error) {
+func (p *PluginConfig) Configure(config []byte) (plugins.Interceptor, error) {
 	if err := json.Unmarshal(config, &p.configJson); err != nil {
 		return nil, err
 	}
-	// todo:可以在这个位置修改baseCfg
-	//cfg := baseCfg
 	customInterceptor := &CustomInterceptor{
 		message: p.configJson.Message,
 	}
