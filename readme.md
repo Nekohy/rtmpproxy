@@ -5,7 +5,7 @@
 ## 参数说明
 
 * `-listen`：指定监听的端口，默认为 `1935`。
-* `-remote`：指定远程 RTMPS 服务器的地址，例如：`rtmps://dc5-1.rtmp.t.me`。
+* `-remote`：指定远程 RTMPS 服务器的地址，例如：`rtmps://dc5-1.rtmp.t.me/s/aaaa`。
 * `-proxy`：指定 SOCKS5 代理地址，格式为 `socks5://[username:password@]host:port`。例如：`socks5://user:pass@127.0.0.1:7890`,`socks5://127.0.0.1:7890`
 * `-plugin`：指定插件配置，格式为 `pluginName:{"key":"value"}`。例如：`test:{"message":"hello world"}`
 * `-ignore`：忽略 TLS 证书验证,默认为 `false`
