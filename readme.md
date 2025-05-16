@@ -20,5 +20,13 @@
 # 使用
 按照如上配置参数运行程序，连接 rtmp://127.0.0.1:1935 即可
 
+# 自编译
+只需要直接编译即可，如果需要插件请添加对应插件的TAG
+
+# 插件开发
+目前已支持Bilibili的自动上下播
+
+开发插件时，可以参考Plugin/test的插件实现
+
 # 感谢
 * [vizee/rtmpproxy](https://github.com/vizee/rtmpproxy)
