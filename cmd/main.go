@@ -102,6 +102,7 @@ func main() {
 			if *baseCfg.RemoteAddr == "" {
 				log.Fatalf("Error: Remote Addr is required")
 			}
+			log.Println("Establishing TCP connection to remote RTMP server...")
 			ServerConn, err := baseCfg.ConnectRemoteAddress()
 			if err != nil {
 				log.Printf("Failed to connect remote RTMP server: %v", err)
@@ -131,6 +132,7 @@ func main() {
 				log.Fatalf("Interceptor AfterCloseTCPConnection failed: %v", err)
 				return
 			}
+			log.Println("TCP connection to remote RTMP server disconnect")
 			// 将错误（可能是 nil）发送到通道
 			errChan <- err
 		}(clientConn) // 将 clientConn 作为参数传递给 goroutine 的闭包
