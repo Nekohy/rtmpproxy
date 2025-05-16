@@ -1,3 +1,5 @@
+//go:build bilibili
+
 package Bilibili
 
 import (
