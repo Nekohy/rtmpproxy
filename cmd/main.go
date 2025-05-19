@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"net"
 	"rtmpproxy/internal"
@@ -24,9 +23,6 @@ func main() {
 	flashVer := flag.String("flashVer", "", "RTMP connect flashVer, default is origin Command")
 	RTMPType := flag.String("type", "", "RTMP connect type, default is origin Command")
 	flag.Parse()
-
-	fmt.Println("flashVer:", *flashVer)
-	fmt.Println("RTMPType:", *RTMPType)
 
 	if *pluginConfig == "" && *remoteAddr == "" {
 		flag.Usage()
