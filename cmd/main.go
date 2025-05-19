@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"net"
 	"rtmpproxy/internal"
@@ -18,8 +19,14 @@ func main() {
 	remoteAddr := flag.String("remote", "", "Remote RTMPS server")
 	proxyAddr := flag.String("proxy", "", "Socks5 proxy server address (e.g., socks5://username:password@127.0.0.1:7890)")
 	pluginConfig := flag.String("plugin", "", `plugin config e.g. "test:{\"message\":\"hello world\"}"`)
+	forceHandle := flag.Bool("force", false, "Force handle all packets, only enabled when necessary")
 	insecureSkipVerify := flag.Bool("ignore", false, "skip TLS certificate verification")
+	flashVer := flag.String("flashVer", "", "RTMP connect flashVer, default is origin Command")
+	RTMPType := flag.String("type", "", "RTMP connect type, default is origin Command")
 	flag.Parse()
+
+	fmt.Println("flashVer:", *flashVer)
+	fmt.Println("RTMPType:", *RTMPType)
 
 	if *pluginConfig == "" && *remoteAddr == "" {
 		flag.Usage()
@@ -31,6 +38,9 @@ func main() {
 		RemoteAddr:         remoteAddr,
 		ProxyAddr:          proxyAddr,
 		InsecureSkipVerify: *insecureSkipVerify,
+		ForceHandle:        *forceHandle,
+		FlashVer:           *flashVer,
+		RTMPType:           *RTMPType,
 	}
 
 	var interceptor plugins.Interceptor
@@ -114,7 +124,7 @@ func main() {
 
 			// 在 goroutine 内部调用 HandleClient
 			appName, streamName, playUrl, err := utils.GetLinkParams(baseCfg.RemoteURL)
-			rtmpConnection := rtmp.CreateRTMPInstance(ClientConn, ServerConn, appName, playUrl, streamName)
+			rtmpConnection := rtmp.CreateRTMPInstance(ClientConn, ServerConn, appName, playUrl, streamName, baseCfg.ForceHandle, baseCfg.FlashVer, baseCfg.RTMPType)
 
 			err = rtmpConnection.RTMPHandshake()
 			if err != nil {

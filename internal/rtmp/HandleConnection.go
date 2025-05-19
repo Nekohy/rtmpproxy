@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"io"
-
 	amf "github.com/zhangpeihao/goamf"
+	"io"
+	"log"
 )
 
 type rtmpChunkHeader struct {
@@ -29,7 +29,7 @@ func (c *RTMPConnection) HandleMessages() error {
 		nread   int
 	)
 
-	for !usecopy {
+	for !usecopy || c.forceHandle {
 		ch, err := rtmpReadHeader(c.ClientConn)
 		if err != nil {
 			return err
@@ -115,7 +115,6 @@ func (c *RTMPConnection) handleRtmpCommand(payload []byte) ([]byte, bool, error)
 		}
 		args = append(args, v)
 	}
-
 	usecopy := false
 	switch command {
 	case "connect":
@@ -123,11 +122,27 @@ func (c *RTMPConnection) handleRtmpCommand(payload []byte) ([]byte, bool, error)
 		obj["app"] = c.appName
 		obj["swfUrl"] = c.playUrl
 		obj["tcUrl"] = c.playUrl
+		if c.flashVer != "" {
+			obj["flashVer"] = c.flashVer // "flashVer -> FMLE/3.0 (compatible; FMSc/1.0)" obs默认值
+		}
+		if c.rtmpType != "" {
+			fmt.Printf("rtmpType: %s\n", c.rtmpType)
+			obj["rtmpType"] = c.rtmpType
+		}
+		// log输出
+		keys := []string{"app", "flashVer", "swfUrl", "tcUrl", "type"}
+		var output string
+		for _, k := range keys {
+			output += fmt.Sprintf("%s=%s ", k, obj[k])
+		}
+		log.Println("RTMP Connect Params:", output)
 	case "releaseStream", "FCPublish":
 		args[1] = c.streamName
 	case "publish":
 		args[1] = c.streamName
-		usecopy = true // 后续不再处理数据包，todo：以后要处理，用来Callback，其实也不太用，TCP数据流关闭做标志就好了
+		usecopy = true
+	case "FCUnpublish":
+		args[1] = c.streamName // 如果不forcehandle的话这里不会处理，不过也无所谓，TCP流也会关，只是减少特征
 	}
 	buf := bytes.NewBuffer(nil)
 	_, _ = amf.WriteString(buf, command)

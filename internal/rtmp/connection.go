@@ -8,11 +8,14 @@ import (
 )
 
 type RTMPConnection struct {
-	ClientConn net.Conn
-	ServerConn net.Conn
-	appName    string
-	playUrl    string
-	streamName string
+	ClientConn  net.Conn
+	ServerConn  net.Conn
+	appName     string
+	playUrl     string
+	streamName  string
+	forceHandle bool
+	flashVer    string
+	rtmpType    string
 }
 
 type copyErr struct {
@@ -66,12 +69,15 @@ func (c *RTMPConnection) Serve() error {
 	return err
 }
 
-func CreateRTMPInstance(ClientConn net.Conn, ServerConn net.Conn, appName string, playUrl string, streamName string) *RTMPConnection {
+func CreateRTMPInstance(ClientConn net.Conn, ServerConn net.Conn, appName string, playUrl string, streamName string, forceHandle bool, flashVer string, RTMPType string) *RTMPConnection {
 	return &RTMPConnection{
-		ClientConn: ClientConn,
-		ServerConn: ServerConn,
-		appName:    appName,
-		playUrl:    playUrl,
-		streamName: streamName,
+		ClientConn:  ClientConn,
+		ServerConn:  ServerConn,
+		appName:     appName,
+		playUrl:     playUrl,
+		streamName:  streamName,
+		forceHandle: forceHandle,
+		flashVer:    flashVer,
+		rtmpType:    RTMPType,
 	}
 }
